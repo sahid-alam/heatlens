@@ -33,11 +33,20 @@ EE_PROJECT=your-project-id
 ## Running
 
 ```bash
-python src/fetch_lst.py       # pulls LST + NDVI + NDBI per ward -> data/processed/wards.csv
-python src/build_index.py     # computes risk index
-python src/model.py           # trains model, writes SHAP values
-uvicorn src.api:app --reload  # serves the map
+python src/fetch_lst.py --limit 5 --quick   # cheap Earth Engine test on 5 wards
+python src/fetch_lst.py --quick             # all 198 wards -> data/processed/gee_wards.csv
+python src/build_wards.py                   # census + housing + satellite -> data/processed/wards.csv
+python src/build_index.py                   # adds hazard, exposure, vulnerability, risk_score
+python src/model.py                         # spatial CV, then lst_pred + SHAP columns
+uvicorn api:app --app-dir src --reload      # map at http://127.0.0.1:8000
 ```
+
+If `--quick` times out on 198 wards, drop it. The script then exports to Google Drive
+(folder `heatlens`), and you download the CSV to `data/processed/gee_wards.csv`.
+
+Raw inputs (not in git, re-downloadable):
+- `data/raw/wards/BBMP_oldWards.geojson`: 198 wards, [DataMeet Municipal_Spatial_Data](https://github.com/datameet/Municipal_Spatial_Data/tree/master/Bangalore), CC BY-SA 2.5 India
+- `data/raw/census/ward_census_2011.csv`, `housing_houselisting_2011.csv`: [OpenCity, Bengaluru Data - Census 2011](https://data.opencity.in/dataset/bengaluru-census-2011)
 
 ## Layout
 
