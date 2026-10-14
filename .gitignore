@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+.DS_Store
+
+# raw downloads are big and re-fetchable
+data/raw/*
+!data/raw/.gitkeep
+
+# generated outputs, except the main table
+data/processed/*
+!data/processed/.gitkeep
+!data/processed/wards.csv
+
+node_modules/
+frontend/dist/
+
+.claude/settings.local.json
+notion_tasks.csv
