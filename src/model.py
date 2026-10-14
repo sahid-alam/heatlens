@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import shap
 from sklearn.cluster import KMeans
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import GroupKFold, cross_val_predict
@@ -30,13 +30,26 @@ FEATURES = ["ndvi", "ndbi", "pop_density"]
 TARGET = "lst_c"
 SEED = 0
 
+
+def trees(monotonic_cst=None):
+    # Small and shallow on purpose: 198 rows overfit easily.
+    return HistGradientBoostingRegressor(
+        max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=10,
+        monotonic_cst=monotonic_cst, random_state=SEED,
+    )
+
+
 MODELS = {
     "linear": LinearRegression(),
-    # Small and shallow on purpose: 198 rows overfit easily.
-    "boosted_trees": GradientBoostingRegressor(
-        n_estimators=200, max_depth=2, learning_rate=0.05, subsample=0.8, random_state=SEED
-    ),
+    "boosted_trees": trees(),
+    # Physics as a rule: more green can only cool, more built-up or people only heat.
+    "boosted_trees_physics": trees(monotonic_cst=[-1, 1, 1]),
 }
+
+# Chosen for physically consistent explanations, not lowest error. Without the
+# constraint, NDVI and NDBI (r = -0.81) trade credit and most low-green wards get
+# "green cover cools you", which is backwards. Costs ~0.04 C of MAE.
+CHOSEN = "boosted_trees_physics"
 
 
 def spatial_groups(ward_ids, k=5):
@@ -64,11 +77,12 @@ def main():
     scores = evaluate(X, y, spatial_groups(df["ward_id"]))
     print("Spatial cross-validation (5 regions):")
     print(scores.round(3).to_string())
-    best = scores["mae_c"].idxmin()
-    print(f"\nUsing {best}")
+    print(f"\nUsing {CHOSEN} (see the note on CHOSEN)")
 
-    model = MODELS[best].fit(X, y)
-    explainer = shap.Explainer(model, X)
+    model = MODELS[CHOSEN].fit(X, y)
+    # Tree SHAP (path-dependent) is exact for tree models; the interventional
+    # mode drifts by ~0.02 C on gradient boosting, failing the check below.
+    explainer = shap.TreeExplainer(model) if CHOSEN != "linear" else shap.Explainer(model, X)
     sv = explainer(X)
 
     df["lst_pred"] = model.predict(X)
