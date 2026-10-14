@@ -9,6 +9,10 @@ const LAYERS = {
 };
 const NO_DATA = "#d0d7de";
 
+// Heat risk can be combined two ways; build_index.py writes both columns.
+let combine = "multiply";
+const field = (key) => (key === "risk_score" && combine === "add" ? "risk_score_add" : key);
+
 const map = L.map("map").setView([12.97, 77.59], 11);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
@@ -25,8 +29,9 @@ function quantileBreaks(values) {
 }
 
 function colorFor(key, value) {
-  if (value == null || !breaks[key]) return NO_DATA;
-  const i = breaks[key].findIndex((b) => value <= b);
+  const b = breaks[field(key)];
+  if (value == null || !b) return NO_DATA;
+  const i = b.findIndex((x) => value <= x);
   return LAYERS[key].colors[i === -1 ? 4 : i];
 }
 
@@ -36,9 +41,10 @@ const fmt = (key, v) => (v == null ? "no data" : Number(v).toLocaleString("en-IN
 
 function restyle() {
   wardsLayer.setStyle((f) => ({
-    fillColor: colorFor(current, f.properties[current]),
+    fillColor: colorFor(current, f.properties[field(current)]),
     fillOpacity: 0.75, color: "#fff", weight: 1,
   }));
+  switcher.combineRow.hidden = current !== "risk_score";
   legend.update();
 }
 
@@ -52,7 +58,20 @@ switcher.onAdd = () => {
       <input type="radio" name="layer" value="${key}" ${off ? "disabled" : ""} ${key === current ? "checked" : ""}>
       ${l.label}</label>`;
   }).join("");
-  div.addEventListener("change", (e) => { current = e.target.value; restyle(); });
+
+  // Multiply / Add switch, only shown while the heat risk layer is on.
+  switcher.combineRow = L.DomUtil.create("fieldset", "combine", div);
+  switcher.combineRow.innerHTML = `<legend>Combine ingredients</legend>
+    <label title="A ward must be bad on heat, people and fragility to rank high">
+      <input type="radio" name="combine" value="multiply" checked> Multiply</label>
+    <label title="One very bad ingredient can push a ward up on its own">
+      <input type="radio" name="combine" value="add"> Add</label>`;
+
+  div.addEventListener("change", (e) => {
+    if (e.target.name === "combine") combine = e.target.value;
+    else current = e.target.value;
+    restyle();
+  });
   L.DomEvent.disableClickPropagation(div);
   return div;
 };
@@ -61,9 +80,10 @@ switcher.onAdd = () => {
 const legend = L.control({ position: "bottomright" });
 legend.onAdd = () => (legend.div = L.DomUtil.create("div", "panel legend"));
 legend.update = () => {
-  const l = LAYERS[current], b = breaks[current];
+  const l = LAYERS[current], b = breaks[field(current)];
   const edges = [null, ...b, null];
-  legend.div.innerHTML = `<h2>${l.label} <small>(${l.unit})</small></h2>` + l.colors.map((c, i) => {
+  const how = current === "risk_score" ? `, ${combine}` : "";
+  legend.div.innerHTML = `<h2>${l.label} <small>(${l.unit}${how})</small></h2>` + l.colors.map((c, i) => {
     const lo = edges[i], hi = edges[i + 1];
     const text = lo == null ? `≤ ${fmt(current, hi)}` : hi == null ? `> ${fmt(current, lo)}` : `${fmt(current, lo)} – ${fmt(current, hi)}`;
     return `<div class="row"><i style="background:${c}"></i>${text}</div>`;
@@ -74,7 +94,8 @@ async function showWard(e, feature) {
   const w = await fetch(`/api/wards/${feature.properties.ward_id}`).then((r) => r.json());
   const rows = [
     ["Surface temp", w.lst_c == null ? "no data" : `${fmt("lst_c", w.lst_c)} °C`],
-    ["Risk rank", w.risk_rank == null ? "no data" : `${w.risk_rank} of 198`],
+    ["Risk rank", (combine === "add" ? w.risk_rank_add : w.risk_rank) == null
+      ? "no data" : `${combine === "add" ? w.risk_rank_add : w.risk_rank} of 198 (${combine})`],
     ["Green cover", fmt("ndvi", w.ndvi)],
     ["Population", fmt("pop_density", w.population)],
     ["Density", `${fmt("pop_density", w.pop_density)} /km²`],
@@ -90,7 +111,7 @@ async function showWard(e, feature) {
 }
 
 fetch("/api/wards").then((r) => r.json()).then((geojson) => {
-  for (const key of Object.keys(LAYERS)) {
+  for (const key of [...Object.keys(LAYERS), "risk_score_add"]) {
     breaks[key] = quantileBreaks(geojson.features.map((f) => f.properties[key]));
   }
   current = Object.keys(LAYERS).find((k) => breaks[k]);
