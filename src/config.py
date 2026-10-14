@@ -25,11 +25,20 @@ MAX_CLOUD = 20
 # Landsat thermal native resolution. Never leave this to the default.
 SCALE = 30
 
-# Fallback AOI if we don't have the BBMP shapefile yet.
-# FAO GAUL level 2 has Bangalore Urban as a district polygon.
-FALLBACK_DISTRICT = "Bangalore Urban"
+# 198-ward boundaries (2009 delimitation, used by Census 2011).
+# Source: DataMeet Municipal_Spatial_Data, CC BY-SA 2.5 India.
+WARDS_GEOJSON = RAW / "wards" / "BBMP_oldWards.geojson"
 
-WARDS_SHP = RAW / "bbmp_wards.shp"
+# Census 2011 ward tables. Source: data.opencity.in "Bengaluru Data - Census 2011".
+CENSUS_CSV = RAW / "census" / "ward_census_2011.csv"
+HOUSING_CSV = RAW / "census" / "housing_houselisting_2011.csv"
+BBMP_TOWN_CODE = 803162  # BBMP's code in the housing table; wards 199+ there are outgrowths
+
+# Metre-based CRS for areas and distances (UTM zone 43N covers Bengaluru).
+METRIC_CRS = "EPSG:32643"
+
+GEE_CSV = PROCESSED / "gee_wards.csv"  # Earth Engine export, downloaded from Drive
+DRIVE_FOLDER = "heatlens"
 WARDS_CSV = PROCESSED / "wards.csv"
 
 
