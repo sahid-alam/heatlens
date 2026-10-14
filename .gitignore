@@ -19,4 +19,3 @@ node_modules/
 frontend/dist/
 
 .claude/settings.local.json
-notion_tasks.csv
