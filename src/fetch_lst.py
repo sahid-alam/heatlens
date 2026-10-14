@@ -50,7 +50,9 @@ def get_wards(limit=None):
     if limit:
         g = g.head(limit)
     print(f"Loaded {len(g)} wards from {WARDS_GEOJSON.name}")
-    return ee.FeatureCollection(g.__geo_interface__)
+    # Bounding box computed here, so Earth Engine never has to union 198 polygons.
+    aoi = ee.Geometry.Rectangle(list(g.total_bounds))
+    return ee.FeatureCollection(g.__geo_interface__), aoi
 
 
 def landsat_composite(aoi):
@@ -99,10 +101,9 @@ def sentinel_indices(aoi):
     return col.map(prep).median()
 
 
-def ward_stats(wards):
+def ward_stats(wards, aoi):
     # ponytail: clip to the bounding box, not the 198-polygon union; same pixels
     # reach reduceRegions, far cheaper per image.
-    aoi = wards.geometry().bounds()
     stack = landsat_composite(aoi).addBands(sentinel_indices(aoi))
     return stack.reduceRegions(
         collection=wards,
@@ -145,7 +146,7 @@ def main():
     p.add_argument("--quick", action="store_true", help="getInfo instead of Drive export")
     args = p.parse_args()
 
-    stats = ward_stats(get_wards(args.limit))
+    stats = ward_stats(*get_wards(args.limit))
     quick(stats) if args.quick else export(stats)
 
 
