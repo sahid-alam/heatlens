@@ -100,14 +100,18 @@ async function showWard(e, feature) {
   const w = await fetch(`/api/wards/${feature.properties.ward_id}`).then((r) => r.json());
   const rows = [
     ["Surface temp", w.lst_c == null ? "no data" : `${fmt("lst_c", w.lst_c)} °C`],
+    ["AI predicted", w.lst_pred == null ? "no data" : `${fmt("lst_c", w.lst_pred)} °C`],
     ["Risk rank", (combine === "add" ? w.risk_rank_add : w.risk_rank) == null
       ? "no data" : `${combine === "add" ? w.risk_rank_add : w.risk_rank} of 198 (${combine})`],
     ["Green cover", fmt("ndvi", w.ndvi)],
     ["Population", fmt("pop_density", w.population)],
     ["Density", `${fmt("pop_density", w.pop_density)} /km²`],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  // SHAP: base (city average) + each driver = AI prediction, so the base is what's left over.
+  const base = w.lst_pred - w.drivers.reduce((sum, d) => sum + d.effect_c, 0);
   const drivers = w.drivers.length
-    ? `<ol class="drivers">${w.drivers.slice(0, 3).map((d) =>
+    ? `<p class="why">Why: city average ${base.toFixed(1)} °C, plus</p>
+       <ol class="drivers">${w.drivers.slice(0, 3).map((d) =>
         `<li>${d.label}: ${signed(d.effect_c)} °C</li>`).join("")}</ol>`
     : `<p class="muted">Heat drivers appear once the model has run.</p>`;
   L.popup({ maxWidth: 260 })
