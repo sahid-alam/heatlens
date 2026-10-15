@@ -90,6 +90,12 @@ legend.update = () => {
   }).join("") + `<div class="row"><i style="background:${NO_DATA}"></i>no data</div>`;
 };
 
+// One decimal with a sign; values that round to zero show as "0.0", never "-0.0".
+const signed = (v) => {
+  const r = Math.round(v * 10) / 10;
+  return r === 0 ? "0.0" : `${r > 0 ? "+" : ""}${r.toFixed(1)}`;
+};
+
 async function showWard(e, feature) {
   const w = await fetch(`/api/wards/${feature.properties.ward_id}`).then((r) => r.json());
   const rows = [
@@ -102,7 +108,7 @@ async function showWard(e, feature) {
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
   const drivers = w.drivers.length
     ? `<ol class="drivers">${w.drivers.slice(0, 3).map((d) =>
-        `<li>${d.label}: ${d.effect_c > 0 ? "+" : ""}${d.effect_c.toFixed(1)} °C</li>`).join("")}</ol>`
+        `<li>${d.label}: ${signed(d.effect_c)} °C</li>`).join("")}</ol>`
     : `<p class="muted">Heat drivers appear once the model has run.</p>`;
   L.popup({ maxWidth: 260 })
     .setLatLng(e.latlng)
